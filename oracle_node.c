@@ -6,6 +6,7 @@
 #define MAX_NODES 26
 
 int adj_matrix[MAX_NODES][MAX_NODES];
+int num_config_nodes = 0;
 
 int parse_config(const char *filename) {
     FILE *fp = fopen(filename, "r");
@@ -56,7 +57,7 @@ int parse_config(const char *filename) {
         }
     }
 
-   
+   num_config_nodes = n;
     for (int i = 0; i < n; i++) {
         adj_matrix[i][i] = 0;
         for (int j = i + 1; j < n; j++) {
