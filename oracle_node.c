@@ -145,7 +145,7 @@ int parse_config(const char *filename) {
     return 1;
 }
 
-#to check
+//#to check
 int main (int argc, char *argv[]){
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <config_file> [ON_Bind_IP]\n", argv[0]);
