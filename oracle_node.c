@@ -56,13 +56,13 @@ int parse_config(const char *filename) {
         }
     }
 
-    num_config_nodes = n;
+   
     for (int i = 0; i < n; i++) {
         adj_matrix[i][i] = 0;
         for (int j = i + 1; j < n; j++) {
             int cost = temp_rows[i][j - (i + 1)];
             adj_matrix[i][j] = cost;
-            adj_matrix[j][i] = cost; // Symmetric link costs
+            adj_matrix[j][i] = cost; 
         }
     }
     return 1;
@@ -73,6 +73,11 @@ int main (int argc, char *argv[]){
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <config_file> [ON_Bind_IP]\n", argv[0]);
         exit(EXIT_FAILURE);
+    if (!parse_config(argv[1])) {
+        return EXIT_FAILURE;
     }
 
+    printf("Oracle Node loaded config for %d nodes.\n", num_config_nodes);
+    return EXIT_SUCCESS;
+    }
 }
