@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #define ON_PORT 5000
 #define MAX_NODES 26
@@ -26,38 +27,56 @@ int parse_config(const char *filename) {
 
         if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
 
+        if(row_count >= MAX_NODES - 1) {
+            fprintf(stderr, "Sanity Check Failed: Too many rows in config file\n");
+            fclose(fp);
+            return 0;
+        }
+
         int col_count = 0;
         char *token = strtok(p, " \t\r\n");
         while (token != NULL) {
-            if (col_count < MAX_NODES) {
-                temp_rows[row_count][col_count++] = atoi(token);
+            if (col_count >= MAX_NODES -1 - row_count) {
+                fprintf(stderr, "Sanity Check Failed: Too many columns in row %d\n", 'A' +row_count);
+                fclose(fp);
+                return 0;
             }
+            
+            errno = 0;
+            char *end;
+            long val = strtol(token, &end, 10);
+
+            if (errno != 0 || end == token || *end != '\0' || val < -1 || val > 2147483647L) {
+                fprintf(stderr, "Sanity Check Failed: Invalid integer value '%s'\n", token);
+                fclose(fp);
+                return 0;
+            }
+
+            temp_rows[row_count][col_count] = (int)val;
+            col_count++;
+
             token = strtok(NULL, " \t\r\n");
         }
 
-        if (col_count > 0) {
             row_lengths[row_count] = col_count;
             row_count++;
-            if (row_count >= MAX_NODES) break;
-        }
     }
     fclose(fp);
 
     int n = row_count + 1;
-    if (n <= 1 || n > MAX_NODES) {
+    if (n < 2 || n > MAX_NODES) {
         fprintf(stderr, "Sanity Check Failed: Invalid node count (%d)\n", n);
         return 0;
     }
 
     for (int i = 0; i < row_count; i++) {
         if (row_lengths[i] != (n - 1 - i)) {
-            fprintf(stderr, "Sanity Check Failed: Row %d has %d cols, expected %d\n",
-                    i, row_lengths[i], n - 1 - i);
+            fprintf(stderr, "Sanity Check Failed: Row %d has %d cols, expected %d\n", 'A' + i, row_lengths[i], n - 1 - i);
             return 0;
         }
     }
 
-   num_config_nodes = n;
+  num_config_nodes = n;
     for (int i = 0; i < n; i++) {
         adj_matrix[i][i] = 0;
         for (int j = i + 1; j < n; j++) {
@@ -73,12 +92,21 @@ int parse_config(const char *filename) {
 int main (int argc, char *argv[]){
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <config_file> [ON_Bind_IP]\n", argv[0]);
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
+    }
+
     if (!parse_config(argv[1])) {
         return EXIT_FAILURE;
     }
 
     printf("Oracle Node loaded config for %d nodes.\n", num_config_nodes);
-    return EXIT_SUCCESS;
+    printf("Adjacency Matrix:\n");
+    for (int i = 0; i < num_config_nodes; i++) {
+        for (int j = 0; j < num_config_nodes; j++) {
+            printf("%d ", adj_matrix[i][j]);
+        }
+        printf("\n");
     }
+
+    return EXIT_SUCCESS;
 }
