@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/select.h>
 
 #define ON_PORT 5000
 #define MAX_NODES 26
@@ -132,6 +133,9 @@ int main (int argc, char *argv[]){
         perror("Socket creation failed");
         return EXIT_FAILURE;
     }
+    // Bind failed: Address already in use - to fix it  or use fuser -k 5000/tcp on terminal
+    int opt = 1;
+    setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -149,6 +153,73 @@ int main (int argc, char *argv[]){
     }
     printf("Oracle Node listening on port %d\n", ON_PORT);
 
-    return EXIT_SUCCESS;
+    //single threaded loop
+    while(1) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(listen_sock, &read_fds);
+        int max_fd = listen_sock;
+    
 
+    for (int i = 0; i < num_config_nodes; i++) {
+        if (vnnodes[i].sock_fd >= 0) {
+            FD_SET(vnnodes[i].sock_fd, &read_fds);
+            if (vnnodes[i].sock_fd > max_fd) {
+                max_fd = vnnodes[i].sock_fd;
+            }
+        }
+    }
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (activity < 0) {
+        perror("select() fail");
+        break;
+    }
+
+    //listen socket new vn connect
+    if (FD_ISSET(listen_sock, &read_fds)) {
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+        int new_fd = accept(listen_sock, (struct sockaddr*)&client_addr, &client_len);
+        if (new_fd >= 0 && num_connected_tcp < MAX_NODES) {
+            int node_index = num_connected_tcp++;
+            vnnodes[node_index].id = 'A' + node_index;
+            vnnodes[node_index].sock_fd = new_fd;
+            printf("accept() new TCP connection -> Assigned VN: %c\n", vnnodes[node_index].id);
+        }
+        }
+
+    for (int i = 0; i < num_config_nodes; i++) {
+        int sd = vnnodes[i].sock_fd; 
+        if(sd >= 0 && FD_ISSET(sd, &read_fds)) {
+            uint8_t msg[7];
+
+            int valread = recv(sd, msg, sizeof(msg), MSG_WAITALL);
+
+            if(valread <= 0) {
+                printf("VN %c disconnected\n", vnnodes[i].id);
+                close(sd);
+                vnnodes[i].sock_fd = -1;
+            } 
+            else if (valread == sizeof(msg) && msg[0] == 1) {
+                memcpy(&vnnodes[i].ip, &msg[1], sizeof(uint32_t));
+                
+                uint16_t net_port;
+                memcpy(&net_port, &msg[5], sizeof(uint16_t));
+                vnnodes[i].udp_port = ntohs(net_port);
+
+                vnnodes[i].connected = 1;
+                //binarry to string
+                char ip_str[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &vnnodes[i].ip, ip_str, INET_ADDRSTRLEN);
+                printf("VN %c connected with IP: %s and UDP port: %d\n", vnnodes[i].id, ip_str, vnnodes[i].udp_port);
+            }
+        }
+    }
+        usleep(100000); // Sleep for 100ms to avoid busy waiting    
+    }
+    return EXIT_SUCCESS;
 }
