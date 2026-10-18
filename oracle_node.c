@@ -127,6 +127,28 @@ int main (int argc, char *argv[]){
         }
         printf("\n");
     }
+    int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_sock < 0) {
+        perror("Socket creation failed");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(ON_PORT);
+    server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+
+    if(bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        return EXIT_FAILURE;
+    }
+    if(listen(listen_sock, MAX_NODES) < 0) {
+        perror("Listen failed");
+        return EXIT_FAILURE;
+    }
+    printf("Oracle Node listening on port %d\n", ON_PORT);
 
     return EXIT_SUCCESS;
+
 }
