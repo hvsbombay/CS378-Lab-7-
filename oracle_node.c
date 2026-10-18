@@ -2,9 +2,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 
 #define ON_PORT 5000
 #define MAX_NODES 26
+
+typedef struct {
+    char id;
+    int sock_fd;
+    uint32_t ip;
+    uint16_t udp_port;
+    int connected;
+}VNNode;
+
+VNNode vnnodes[MAX_NODES];
+int num_connected_tcp = 0; 
 
 int adj_matrix[MAX_NODES][MAX_NODES];
 int num_config_nodes = 0;
@@ -100,6 +114,12 @@ int main (int argc, char *argv[]){
     }
 
     printf("Oracle Node loaded config for %d nodes.\n", num_config_nodes);
+
+    for (int i =0; i < MAX_NODES; i++) {
+        vnnodes[i].sock_fd = -1;
+        vnnodes[i].connected = 0;
+    }
+
     printf("Adjacency Matrix:\n");
     for (int i = 0; i < num_config_nodes; i++) {
         for (int j = 0; j < num_config_nodes; j++) {
