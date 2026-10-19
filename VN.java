@@ -1,12 +1,8 @@
-import java.net.InetAddress;
-import java.net.DatagramSocket;
-import java.net.InetSocketAddress;
-import java.net.SocketException;
-import java.net.Socket;
-import java.io.IOException;
+import java.net.*;
+import java.io.*;
 
 public class VN {
-    public static void main(String[] args){
+    public static void main(String[] args) throws IOException{
         if(args.length !=3){
             System.out.println("Usage: java VN <ON_IP> <VN_IP> <VN_UDP_PORT>");
             return ;
@@ -36,6 +32,13 @@ public class VN {
             TCP_Socket = new Socket();
             TCP_Socket.connect(new InetSocketAddress(ON_Addr, 5000));
             System.out.println("Connected to ON using TCP.");
+            DataOutputStream out = new DataOutputStream(TCP_Socket.getOutputStream());
+            out.writeByte(1); //Byte 0: message type
+            byte[] ipBytes=((Inet4Address)VN_Addr).getAddress();
+            out.write(ipBytes); // Bytes 1–4: VN IPv4 address
+            out.writeShort(VN_UDP_PORT); // Bytes 5–6: VN UDP port
+            out.flush();
+            System.out.println("CONNECT message sent to ON");
         }catch(SocketException e){
             System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
             return ;
