@@ -122,9 +122,38 @@ int send_linkstates(int node_index){
     message[0]=2; // LINK-STATE message type
     int p=2;
     message[p++]= (uint8_t) vnnodes[node_index].id;
-    memccpy()
+    memcpy(&message[p],&vnnodes[node_index].ip,4);
+    p+=4;
+    uint16_t net_port=htons(vnnodes[node_index].udp_port);  
+    memcpy(&message[p],&net_port,2);
+    p+=2;   
+    uint32_t zero_cost=htonl(0);
+    memcpy(&message[p],&zero_cost,4);   
+    p+=4;
+    tuple_count++;
 
-}
+    for(int j=0;j<num_config_nodes;j++){
+        if(j == node_index ||adj_matrix[node_index][j] == -1){
+            continue;
+        }
+            message[p++]=(uint8_t) vnnodes[j].id;
+            memcpy(&message[p],&vnnodes[j].ip,4);
+            p+=4;
+            
+            net_port=htons(vnnodes[j].udp_port);
+            memcpy(&message[p],&net_port,2);
+            p+=2;
+
+            cost=htonl((uint32_t)adj_matrix[node_index][j]);
+            memcpy(&message[p],&cost,4);
+            p+=4;
+            tuple_count++;
+        }
+        message[1]=(uint8_t)tuple_count;
+
+        return send_all(vnnodes[node_index].sock_fd,message,(size_t)p);
+    }
+
 
 int main (int argc, char *argv[]){
     if (argc < 2) {
