@@ -190,10 +190,10 @@ int main (int argc, char *argv[]){
     setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
     struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
+    memset(&(server_addr.sin_zero), '\0', 8);
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(ON_PORT);
-    server_addr.sin_addr.s_addr = htons(INADDR_ANY);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
 
     if(bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Bind failed");
