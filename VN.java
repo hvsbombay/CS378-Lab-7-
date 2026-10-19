@@ -27,14 +27,26 @@ public class VN {
         System.out.println("VN IP: " + VN_Addr.getHostAddress());
         System.out.println("VN UDP Port: " + VN_UDP_PORT);
         DatagramSocket UDP_Socket= null;
+        Socket TCP_Socket= null;
         try{
             UDP_Socket= new DatagramSocket(null);
             UDP_Socket.bind(new InetSocketAddress(VN_Addr,VN_UDP_PORT));
             System.out.println("binding is done");
+
+            TCP_Socket = new Socket();
+            TCP_Socket.connect(new InetSocketAddress(ON_Addr, 5000));
+            System.out.println("Connected to ON using TCP.");
         }catch(SocketException e){
             System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
             return ;
         }finally{
+            if (TCP_Socket != null) {
+                try {
+                    TCP_Socket.close();
+                } catch (IOException e) {
+                    System.err.println("Error closing TCP socket.");
+                }
+            }
             if (UDP_Socket!=null){
                 UDP_Socket.close();
             }
