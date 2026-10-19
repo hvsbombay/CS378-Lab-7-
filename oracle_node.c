@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/socket.h>
@@ -102,8 +103,21 @@ int parse_config(const char *filename) {
     }
     return 1;
 }
+int send_all(int sock_fd, const uint8_t *data ,size_t length){
+    size_t total=0;
+    while (total<length)
+    {
+        ssize_t sent= send(sock_fd, data+total,length-total,0);
+        if(sent<=0){
+            perror("send failed");
+            return 0;
+        }
+        total+=(size_t)sent;
+    }
+    return 1;
+}
 
-//#to check
+
 int main (int argc, char *argv[]){
     if (argc < 2) {
         fprintf(stderr, "Usage: %s <config_file> [ON_Bind_IP]\n", argv[0]);
