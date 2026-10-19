@@ -39,6 +39,16 @@ public class VN {
             out.writeShort(VN_UDP_PORT); // Bytes 5–6: VN UDP port
             out.flush();
             System.out.println("CONNECT message sent to ON");
+            DataInputStream in = new DataInputStream(TCP_Socket.getInputStream());
+            // Read the LINK-STATE header
+            int messageType = in.readUnsignedByte();
+            int tupleCount= in.readUnsignedByte();
+            if (messageType!=2){
+                System.err.println("Unexpected message type: " +messageType);
+                return ;
+            }
+            System.out.println("Received LINK-STATE from ON.");
+            System.out.println("Number of tuples: " + tupleCount);
         }catch(SocketException e){
             System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
             return ;
