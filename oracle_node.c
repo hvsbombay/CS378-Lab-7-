@@ -24,6 +24,7 @@ int num_connected_tcp = 0;
 
 int adj_matrix[MAX_NODES][MAX_NODES];
 int num_config_nodes = 0;
+int link_state_sent=0;
 
 int parse_config(const char *filename) {
     FILE *fp = fopen(filename, "r");
@@ -144,7 +145,7 @@ int send_linkstates(int node_index){
             memcpy(&message[p],&net_port,2);
             p+=2;
 
-            cost=htonl((uint32_t)adj_matrix[node_index][j]);
+            uint32_t cost=htonl((uint32_t)adj_matrix[node_index][j]);
             memcpy(&message[p],&cost,4);
             p+=4;
             tuple_count++;
@@ -268,6 +269,24 @@ int main (int argc, char *argv[]){
                 inet_ntop(AF_INET, &vnnodes[i].ip, ip_str, INET_ADDRSTRLEN);
                 printf("VN %c connected with IP: %s and UDP port: %d\n", vnnodes[i].id, ip_str, vnnodes[i].udp_port);
             }
+        }
+    }
+    if(!link_state_sent){
+        int all_connected=1; 
+        for(int i=0; i<num_config_nodes ; i++){
+            if(!vnnodes[i].connected){
+                all_connected=0;
+                break;
+            }
+        }
+        if(all_connected){
+            printf("All VNs connected. Sending Link state essages.\n");
+            for (int i=0 ;i< num_config_nodes;i++){
+                if(!send_linkstates(i)){
+                    fprintf(stderr, "Failed to send linkstate to VN %c\n",vnnodes[i].id);
+                }
+            }
+            link_state_sent=1;
         }
     }
         usleep(100000); // Sleep for 100ms to avoid busy waiting    
