@@ -116,7 +116,15 @@ int send_all(int sock_fd, const uint8_t *data ,size_t length){
     }
     return 1;
 }
+int send_linkstates(int node_index){
+    uint8_t message[2+MAX_NODES*11];
+    int tuple_count=0;
+    message[0]=2; // LINK-STATE message type
+    int p=2;
+    message[p++]= (uint8_t) vnnodes[node_index].id;
+    memccpy()
 
+}
 
 int main (int argc, char *argv[]){
     if (argc < 2) {
