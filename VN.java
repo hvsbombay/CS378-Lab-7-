@@ -49,6 +49,19 @@ public class VN {
             }
             System.out.println("Received LINK-STATE from ON.");
             System.out.println("Number of tuples: " + tupleCount);
+            for(int i=0 ; i<tupleCount ;i++){
+                char NodeId= (char) in.readUnsignedByte();
+
+                byte[] ipBytesRecieved =new byte[4];
+                in.readFully(ipBytesRecieved);
+                InetAddress NodeAddr =InetAddress.getByAddress(ipBytesRecieved);
+
+                int NodePort=in.readUnsignedShort();
+
+                int cost= in.readInt();
+                System.out.println("Node: " + NodeId + ", IP: " + NodeAddr.getHostAddress() +
+                                    ", UDP Port: " + NodePort +", Cost: " + cost);
+            }
         }catch(SocketException e){
             System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
             return ;
