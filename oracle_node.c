@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 
-#define ON_PORT 5000
+#define ON_PORT 5050
 #define MAX_NODES 26
 
 typedef struct {

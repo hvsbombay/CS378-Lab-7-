@@ -1,5 +1,8 @@
 import java.net.*;
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.*;
+
 
 public class VN {
     public static void main(String[] args) throws IOException{
@@ -14,7 +17,8 @@ public class VN {
 
         InetAddress ON_Addr=InetAddress.getByName(ON_IP);
         InetAddress VN_Addr=InetAddress.getByName(VN_IP);
-
+        Selector selector = Selector.open();
+        
         if(VN_UDP_PORT<1 || VN_UDP_PORT>65535){
             System.out.println("invalid UDP port");
             return ;
@@ -27,10 +31,11 @@ public class VN {
         try{
             UDP_Socket= new DatagramSocket(null);
             UDP_Socket.bind(new InetSocketAddress(VN_Addr,VN_UDP_PORT));
+            UDP_Socket.setSoTimeout(100);
             System.out.println("binding is done");
 
             TCP_Socket = new Socket();
-            TCP_Socket.connect(new InetSocketAddress(ON_Addr, 5000));
+            TCP_Socket.connect(new InetSocketAddress(ON_Addr, 5050));
             System.out.println("Connected to ON using TCP.");
             DataOutputStream out = new DataOutputStream(TCP_Socket.getOutputStream());
             out.writeByte(1); //Byte 0: message type
@@ -41,31 +46,43 @@ public class VN {
             System.out.println("CONNECT message sent to ON");
             DataInputStream in = new DataInputStream(TCP_Socket.getInputStream());
             // Read the LINK-STATE header
-            int messageType = in.readUnsignedByte();
-            int tupleCount= in.readUnsignedByte();
-            if (messageType!=2){
-                System.err.println("Unexpected message type: " +messageType);
-                return ;
-            }
-            System.out.println("Received LINK-STATE from ON.");
-            System.out.println("Number of tuples: " + tupleCount);
-            for(int i=0 ; i<tupleCount ;i++){
-                char NodeId= (char) in.readUnsignedByte();
+            while (true) {
+                int messageType = in.readUnsignedByte();
+                int tupleCount= in.readUnsignedByte();
+                if (messageType!=2){
+                    System.err.println("Unexpected message type: " +messageType);
+                    return ;
+                }
+                System.out.println("Received LINK-STATE from ON.");
+                System.out.println("Number of tuples: " + tupleCount);
+                for(int i=0 ; i<tupleCount ;i++){
+                    char NodeId= (char) in.readUnsignedByte();
 
-                byte[] ipBytesRecieved =new byte[4];
-                in.readFully(ipBytesRecieved);
-                InetAddress NodeAddr =InetAddress.getByAddress(ipBytesRecieved);
+                    byte[] ipBytesRecieved =new byte[4];
+                    in.readFully(ipBytesRecieved);
+                    InetAddress NodeAddr =InetAddress.getByAddress(ipBytesRecieved);
 
-                int NodePort=in.readUnsignedShort();
+                    int NodePort=in.readUnsignedShort();
 
-                int cost= in.readInt();
-                System.out.println("Node: " + NodeId + ", IP: " + NodeAddr.getHostAddress() +
+                    int cost= in.readInt();
+                    System.out.println("Node: " + NodeId + ", IP: " + NodeAddr.getHostAddress() +
                                     ", UDP Port: " + NodePort +", Cost: " + cost);
+                }
             }
-        }catch(SocketException e){
+            byte[] buffer = new byte[1024];
+            while (true) {
+                DatagramPacket packet= new DatagramPacket(buffer, buffer.length);
+                UDP_Socket.receive(packet);
+                System.out.println("Received a UDP packet from " +packet.getAddress().getHostAddress() +":" + packet.getPort());
+            }
+
+        }
+        catch(SocketTimeoutException e){}
+        catch(SocketException e){
             System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
             return ;
-        }finally{
+        }
+        finally{
             if (TCP_Socket != null) {
                 try {
                     TCP_Socket.close();
