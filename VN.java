@@ -122,6 +122,24 @@ public class VN {
                     for(int i =0 ; i<nbrCount;i++){
                         System.out.println(nbrIds[i] + "Cost" + nbrcosts[i] +"IP=" + nbrIPs[i].getHostAddress()+ "Port="+ nbrPorts[i]);
                     }
+                    ByteBuffer lsp= ByteBuffer.allocate(6+nbrCount*5);
+                    lsp.put((byte)ownnodeId);
+                    lsp.putInt(++seqNo);
+                    lsp.put((byte)nbrCount);
+                    for(int i=0;i<nbrCount;i++){
+                        lsp.put((byte)nbrIds[i]);
+                        lsp.putInt(nbrcosts[i]);
+                    }
+                    byte[] lspBytes=lsp.array();
+                    System.out.println("created lsp for node"+ownnodeId);
+                    System.out.println("seqence No."+seqNo);
+                    System.out.println("lsp size"+lspBytes.length+"Bytes");
+
+                    for(int i=0;i<nbrCount;i++){
+                        DatagramPacket lspPacket=new DatagramPacket(lspBytes,lspBytes.length,nbrIPs[i],nbrPorts[i]);
+                        UDP_Socket.send(lspPacket);
+                        System.err.println("lsp sent to node"+ nbrIds[i]+ "at" + nbrIPs[i].getHostAddress()+ ":"+ nbrPorts[i]);
+                    }
                     int restBytes=tcpCount-messagelen;
                     System.arraycopy(tcpBuffer, messagelen, tcpBuffer, 0, restBytes);
                     tcpCount=restBytes;
