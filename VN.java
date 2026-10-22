@@ -17,8 +17,6 @@ public class VN {
 
         InetAddress ON_Addr=InetAddress.getByName(ON_IP);
         InetAddress VN_Addr=InetAddress.getByName(VN_IP);
-        Selector selector = Selector.open();
-        
         if(VN_UDP_PORT<1 || VN_UDP_PORT>65535){
             System.out.println("invalid UDP port");
             return ;
@@ -26,74 +24,17 @@ public class VN {
         System.out.println("ON IP: " + ON_Addr.getHostAddress());
         System.out.println("VN IP: " + VN_Addr.getHostAddress());
         System.out.println("VN UDP Port: " + VN_UDP_PORT);
-        DatagramSocket UDP_Socket= null;
-        Socket TCP_Socket= null;
-        try{
-            UDP_Socket= new DatagramSocket(null);
-            UDP_Socket.bind(new InetSocketAddress(VN_Addr,VN_UDP_PORT));
-            UDP_Socket.setSoTimeout(100);
-            System.out.println("binding is done");
-
-            TCP_Socket = new Socket();
-            TCP_Socket.connect(new InetSocketAddress(ON_Addr, 5050));
-            System.out.println("Connected to ON using TCP.");
-            DataOutputStream out = new DataOutputStream(TCP_Socket.getOutputStream());
-            out.writeByte(1); //Byte 0: message type
-            byte[] ipBytes=((Inet4Address)VN_Addr).getAddress();
-            out.write(ipBytes); // Bytes 1–4: VN IPv4 address
-            out.writeShort(VN_UDP_PORT); // Bytes 5–6: VN UDP port
-            out.flush();
-            System.out.println("CONNECT message sent to ON");
-            DataInputStream in = new DataInputStream(TCP_Socket.getInputStream());
-            // Read the LINK-STATE header
-            while (true) {
-                int messageType = in.readUnsignedByte();
-                int tupleCount= in.readUnsignedByte();
-                if (messageType!=2){
-                    System.err.println("Unexpected message type: " +messageType);
-                    return ;
-                }
-                System.out.println("Received LINK-STATE from ON.");
-                System.out.println("Number of tuples: " + tupleCount);
-                for(int i=0 ; i<tupleCount ;i++){
-                    char NodeId= (char) in.readUnsignedByte();
-
-                    byte[] ipBytesRecieved =new byte[4];
-                    in.readFully(ipBytesRecieved);
-                    InetAddress NodeAddr =InetAddress.getByAddress(ipBytesRecieved);
-
-                    int NodePort=in.readUnsignedShort();
-
-                    int cost= in.readInt();
-                    System.out.println("Node: " + NodeId + ", IP: " + NodeAddr.getHostAddress() +
-                                    ", UDP Port: " + NodePort +", Cost: " + cost);
-                }
-            }
-            byte[] buffer = new byte[1024];
-            while (true) {
-                DatagramPacket packet= new DatagramPacket(buffer, buffer.length);
-                UDP_Socket.receive(packet);
-                System.out.println("Received a UDP packet from " +packet.getAddress().getHostAddress() +":" + packet.getPort());
-            }
-
-        }
-        catch(SocketTimeoutException e){}
-        catch(SocketException e){
-            System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
-            return ;
-        }
-        finally{
-            if (TCP_Socket != null) {
-                try {
-                    TCP_Socket.close();
-                } catch (IOException e) {
-                    System.err.println("Error closing TCP socket.");
-                }
-            }
-            if (UDP_Socket!=null){
-                UDP_Socket.close();
-            }
-        }
+        Selector selector = Selector.open();
+        DatagramChannel UDP_Channel= DatagramChannel.open();
+        UDP_Channel.configureBlocking(false);
+        UDP_Channel.bind(new InetSocketAddress(VN_Addr,VN_UDP_PORT));
+        UDP_Channel.register(selector,SelectionKey.OP_READ);
+        SocketChannel TCP_Channel = SocketChannel.open();
+        TCP_Channel.configureBlocking(false);
+        TCP_Channel.connect(new InetSocketAddress(ON_Addr,5050));
+        TCP_Channel.register(selector, SelectionKey.OP_CONNECT);
+            
+        
     }
 }
 
