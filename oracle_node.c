@@ -193,7 +193,17 @@ int main (int argc, char *argv[]){
     memset(&(server_addr.sin_zero), '\0', 8);
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(ON_PORT);
-    server_addr.sin_addr.s_addr = INADDR_ANY;
+    if (argc >= 3) {
+        if (inet_pton(AF_INET, argv[2],&server_addr.sin_addr) != 1) {
+            fprintf(stderr, "Invalid ON bind IP address\n");
+            close(listen_sock);
+            return EXIT_FAILURE;
+            }
+    } else {
+        fprintf(stderr, "Please provide the ON bind IP address\n");
+        close(listen_sock);
+        return EXIT_FAILURE;
+    }
 
     if(bind(listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Bind failed");
