@@ -47,6 +47,13 @@ public class VN {
             byte[] udpBuffer = new byte[2048];
             TCP_Socket.setSoTimeout(10);
             UDP_Socket.setSoTimeout(10);
+            char ownnodeId='?';
+            int nbrCount =0;
+            char[] nbrIds= new char[26];
+            int[] nbrcosts= new int[26];
+            InetAddress[] nbrIPs = new InetAddress[26];
+            int[] nbrPorts =new int[26];
+            int seqNo= 0;
             // Read the LINK-STATE header
             while (true) {
                 int nextbyte;
@@ -69,8 +76,8 @@ public class VN {
                     tcpCount++;
                 }
                 while (tcpCount>=2) {
-                    int messageType = tcpBuffer[0] & OxFF;
-                    int tupleCount= tcpBuffer[1] & OxFF;
+                    int messageType = tcpBuffer[0] & 0xFF;
+                    int tupleCount= tcpBuffer[1] & 0xFF;
                     if (messageType!=2){
                         System.err.println("Unexpected message type: " +messageType);
                         return ;
@@ -85,6 +92,7 @@ public class VN {
                     }
                     System.out.println("Received LINK-STATE from ON.");
                     System.out.println("Number of tuples: " + tupleCount);
+                    nbrCount=0;
                     int pos=2;
                     for(int i=0 ; i<tupleCount ;i++){
                         char NodeId= (char)(tcpBuffer[pos] & 0xFF);
@@ -98,6 +106,21 @@ public class VN {
                         int cost= ByteBuffer.wrap(tcpBuffer,pos,4).getInt();
                         pos+=4;
                         System.out.println("Node: " + NodeId + ", IP: " + NodeAddr.getHostAddress() +", UDP Port: " + NodePort +", Cost: " + cost);
+                        if(cost==0){
+                            ownnodeId=NodeId;
+                        }
+                        else{
+                            nbrIds[nbrCount]= NodeId;
+                            nbrIPs[nbrCount]=NodeAddr;
+                            nbrPorts[nbrCount]= NodePort;
+                            nbrcosts[nbrCount]= cost;
+                            nbrCount++;
+                        }
+                    }
+                    System.out.println("my Node Id:" + ownnodeId);
+                    System.out.println("my Nbr Cont" + nbrCount);
+                    for(int i =0 ; i<nbrCount;i++){
+                        System.out.println(nbrIds[i] + "Cost" + nbrcosts[i] +"IP=" + nbrIPs[i].getHostAddress()+ "Port="+ nbrPorts[i]);
                     }
                     int restBytes=tcpCount-messagelen;
                     System.arraycopy(tcpBuffer, messagelen, tcpBuffer, 0, restBytes);
@@ -111,10 +134,11 @@ public class VN {
                 catch(SocketTimeoutException e){}
             }
         }
-        catch(SocketTimeoutException e){}
         catch(SocketException e){
-            System.err.println("Failed to bind VN UDP socket: " + e.getMessage());
-            return ;
+            System.err.println("Socket error: " + e.getMessage());
+        }
+        catch(IOException e){
+            System.err.println("I/O error: " + e.getMessage());
         }
         finally{
             if (TCP_Socket != null) {
