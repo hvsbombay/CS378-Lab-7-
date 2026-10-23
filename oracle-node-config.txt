@@ -15,7 +15,7 @@
 # of upper-right triangle
         2       4       -1
 # Costs from C to D, E
-                -1      15566
+                -1      1
 # Costs from D to E
                     	7
             # 172.19.8.52
