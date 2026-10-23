@@ -218,6 +218,25 @@ public class VN {
         }
         System.out.println("Broadcasted LSP seq " + seqNo);
     }
+
+    private static void printGraph(){
+        System.out.println("----Current Graph----");
+        for(int i=0;i< N;i++){
+            boolean hasLinks = false;
+            StringBuilder sb = new StringBuilder();
+            sb.append((char) ('A' + i)).append(": ");
+            for(int j = 0;j<N;j++){
+                if(graph[i][j] >= 0){
+                    sb.append((char) ('A' +j)).append("=").append(graph[i][j]).append(" ");
+                    hasLinks = true;
+                }
+            }
+            if(hasLinks){
+                System.out.println(sb.toString().trim());
+            }
+        }
+        System.out.println("--------------------------------------");
+    }
 }
 
 
