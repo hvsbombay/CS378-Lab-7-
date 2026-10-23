@@ -187,7 +187,7 @@ int main (int argc, char *argv[]){
         perror("Socket creation failed");
         return EXIT_FAILURE;
     }
-    // Bind failed: Address already in use - to fix it  or use fuser -k 5000/tcp on terminal
+    
     int opt = 1;
     setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
@@ -221,7 +221,7 @@ int main (int argc, char *argv[]){
     stat(argv[1], &file_stat);
     time_t last_mod_time = file_stat.st_mtime;
     time_t last_check_time = time(NULL);
-    //single threaded loop
+    
     while(1) {
         fd_set read_fds;
         FD_ZERO(&read_fds);
@@ -293,7 +293,6 @@ int main (int argc, char *argv[]){
                 vnnodes[i].udp_port = ntohs(net_port);
 
                 vnnodes[i].connected = 1;
-                //binarry to string
                 char ip_str[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &vnnodes[i].ip, ip_str, INET_ADDRSTRLEN);
                 printf("VN %c connected with IP: %s and UDP port: %d\n", vnnodes[i].id, ip_str, vnnodes[i].udp_port);

@@ -85,7 +85,7 @@ public class VN {
                         return ;
                     }
                     if (tupleCount>26){
-                        System.err.println("inavalid tplecont"+ tupleCount);
+                        System.err.println("inavalid tuplecount"+ tupleCount);
                         return ;
                     }
                     int messagelen=2+tupleCount*11;
@@ -144,7 +144,7 @@ public class VN {
                     int offset=packet.getOffset();
                     int len=packet.getLength();
                     if(len<6){
-                        System.out.println("ignore incoplete lsp");
+                        System.out.println("ignore incomplete lsp");
                     }
                     else{
                         char originId= (char)(data[offset]& 0xFF);
