@@ -1,17 +1,26 @@
 import java.net.*;
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 public class VN {
+    static final int ON_port= 5000;
+    static final int N=26;
+    static final int [][]graph= new int[N][N];
+    static final int []lastseq= new int[N];
+    static char ownnodeId ='?';
+    static int seqNo=0, nbrCount=0;
+    static final char[] nbrIds= new char[N];
+    static final int[] nbrcosts = new int[26];
+    static final int[] nbrPorts = new int[N];
+    static final InetAddress[] nbrIPs = new InetAddress[26];
     public static void main(String[] args) throws IOException{
         if(args.length !=3){
             System.out.println("Usage: java VN <ON_IP> <VN_IP> <VN_UDP_PORT>");
             return ;
         }
-
         String ON_IP= args[0];
         String VN_IP=args[1];
         int VN_UDP_PORT=Integer.parseInt(args[2]);
-
         InetAddress ON_Addr=InetAddress.getByName(ON_IP);
         InetAddress VN_Addr=InetAddress.getByName(VN_IP);
 
@@ -19,6 +28,11 @@ public class VN {
             System.out.println("invalid UDP port");
             return ;
         }
+        for (int i=0; i<N; i++){
+            Arrays.fill(graph[i],-2);
+            lastseq[i]=-1;
+        }
+        
         System.out.println("ON IP: " + ON_Addr.getHostAddress());
         System.out.println("VN IP: " + VN_Addr.getHostAddress());
         System.out.println("VN UDP Port: " + VN_UDP_PORT);
@@ -45,36 +59,22 @@ public class VN {
             byte[] tcpBuffer = new byte[2048];
             int tcpCount = 0;
             byte[] udpBuffer = new byte[2048];
-            TCP_Socket.setSoTimeout(10);
-            UDP_Socket.setSoTimeout(10);
-            char ownnodeId='?';
-            int nbrCount =0;
-            char[] nbrIds= new char[26];
-            int[] nbrcosts= new int[26];
-            InetAddress[] nbrIPs = new InetAddress[26];
-            int[] nbrPorts =new int[26];
-            int seqNo= 0;
+            
+            long lastPeriodicBroadcast= System.currentTimeMillis();
             // Read the LINK-STATE header
             while (true) {
-                int nextbyte;
                 try{
-                    nextbyte=in.read();
-                }
-                catch(SocketTimeoutException e){
-                    nextbyte=-2;
-                }
-                if (nextbyte==-1){
-                    System.out.println("ON disconnected");
-                    break;
-                }
-                if(nextbyte>=0){
-                    if(tcpCount>=tcpBuffer.length){
-                        System.err.println("tcp essage bffer fll");
+                    int nextbyte=in.read();
+                    if (nextbyte==-1){
+                        System.out.println("ON disconnected");
                         break;
                     }
-                    tcpBuffer[tcpCount]= (byte)nextbyte;
-                    tcpCount++;
+                    if(tcpCount>=tcpBuffer.length){
+                        tcpBuffer[tcpCount++] = (byte) nextbyte;
+                    }
                 }
+                catch(SocketTimeoutException e){}
+
                 while (tcpCount>=2) {
                     int messageType = tcpBuffer[0] & 0xFF;
                     int tupleCount= tcpBuffer[1] & 0xFF;
@@ -105,11 +105,10 @@ public class VN {
                         pos+=2;
                         int cost= ByteBuffer.wrap(tcpBuffer,pos,4).getInt();
                         pos+=4;
-                        System.out.println("Node: " + NodeId + ", IP: " + NodeAddr.getHostAddress() +", UDP Port: " + NodePort +", Cost: " + cost);
+
                         if(cost==0){
                             ownnodeId=NodeId;
-                        }
-                        else{
+                        }else{
                             nbrIds[nbrCount]= NodeId;
                             nbrIPs[nbrCount]=NodeAddr;
                             nbrPorts[nbrCount]= NodePort;
@@ -117,29 +116,13 @@ public class VN {
                             nbrCount++;
                         }
                     }
-                    System.out.println("my Node Id:" + ownnodeId);
-                    System.out.println("my Nbr Cont" + nbrCount);
-                    for(int i =0 ; i<nbrCount;i++){
-                        System.out.println(nbrIds[i] + "Cost" + nbrcosts[i] +"IP=" + nbrIPs[i].getHostAddress()+ "Port="+ nbrPorts[i]);
-                    }
-                    ByteBuffer lsp= ByteBuffer.allocate(6+nbrCount*5);
-                    lsp.put((byte)ownnodeId);
-                    lsp.putInt(++seqNo);
-                    lsp.put((byte)nbrCount);
-                    for(int i=0;i<nbrCount;i++){
-                        lsp.put((byte)nbrIds[i]);
-                        lsp.putInt(nbrcosts[i]);
-                    }
-                    byte[] lspBytes=lsp.array();
-                    System.out.println("created lsp for node"+ownnodeId);
-                    System.out.println("seqence No."+seqNo);
-                    System.out.println("lsp size"+lspBytes.length+"Bytes");
 
-                    for(int i=0;i<nbrCount;i++){
-                        DatagramPacket lspPacket=new DatagramPacket(lspBytes,lspBytes.length,nbrIPs[i],nbrPorts[i]);
-                        UDP_Socket.send(lspPacket);
-                        System.err.println("lsp sent to node"+ nbrIds[i]+ "at" + nbrIPs[i].getHostAddress()+ ":"+ nbrPorts[i]);
+                    int selfIdx=ownnodeId-'A';
+                    graph[selfIdx][selfIdx]=0;
+                    for(int i =0 ; i<nbrCount;i++){
+                        graph[selfIdx][nbrIds[i]-'A'] =nbrcosts[i];
                     }
+                    broadcastLSP(UDP_Socket);
                     int restBytes=tcpCount-messagelen;
                     System.arraycopy(tcpBuffer, messagelen, tcpBuffer, 0, restBytes);
                     tcpCount=restBytes;
@@ -147,9 +130,58 @@ public class VN {
                 try{
                     DatagramPacket packet= new DatagramPacket(udpBuffer,udpBuffer.length);
                     UDP_Socket.receive(packet);
-                    System.out.println("Received a UDP packet from " +packet.getAddress().getHostAddress() +":" + packet.getPort());
+                    byte[] data= packet.getData();
+                    int offset=packet.getOffset();
+                    int len=packet.getLength();
+                    if(len<6){
+                        System.out.println("ignore incoplete lsp");
+                    }
+                    else{
+                        char originId= (char)(data[offset]& 0xFF);
+                        int originIndex=originId-'A';
+                        int inseq= ByteBuffer.wrap(data, offset+1,4).getInt();
+                        int lspnbrcnt=data[offset+5]& 0xFF;
+                        int expectedlen=6+lspnbrcnt*5;
+                        if (originIndex<0 || originIndex>=26 || lspnbrcnt>25 || len!=expectedlen){
+                            System.out.println("Ignoring invalid lsp");
+                        }
+                        else{
+                            char[] recvnbrIds=new char[lspnbrcnt];
+                            int[] recvnbrCosts=new int[lspnbrcnt];
+                            int pos=offset+6;
+                            boolean valid=true;
+                            for(int i=0;i<lspnbrcnt;i++){
+                                char nbrId= (char)(data[pos]& 0xFF);
+                                pos++;
+                                int nbrIndex=nbrId-'A';
+                                int cost=ByteBuffer.wrap(data,pos,4).getInt();
+                                pos+=4;
+                                if(nbrIndex<0 || nbrIndex>=26 || originIndex==nbrIndex){
+                                    valid=false;
+                                    break;
+                                }
+                                recvnbrIds[i]=nbrId;
+                                recvnbrCosts[i]=cost;
+                            }
+
+                            if(valid && inseq>lastseq[originIndex]){
+                                lastseq[originIndex]=inseq;
+                                Arrays.fill(graph[originIndex],-1);
+                                graph[originIndex][originIndex]=0;
+                                for(int i=0;i<lspnbrcnt;i++){
+                                    graph[originIndex][recvnbrIds[i]-'A']=recvnbrCosts[i];
+                                }
+                                System.out.println("Accepted LSP from " + originId + ", seqNo: " + inseq);
+                            }
+                        }
+                    }
                 }
                 catch(SocketTimeoutException e){}
+                if(System.currentTimeMillis()-lastPeriodicBroadcast> 15000){
+                    broadcastLSP(UDP_Socket);
+                    printGraph();
+                    lastPeriodicBroadcast= System.currentTimeMillis();
+                }
             }
         }
         catch(SocketException e){
@@ -160,16 +192,32 @@ public class VN {
         }
         finally{
             if (TCP_Socket != null) {
-                try {
-                    TCP_Socket.close();
-                } catch (IOException e) {
-                    System.err.println("Error closing TCP socket.");
-                }
+                TCP_Socket.close();
             }
             if (UDP_Socket!=null){
                 UDP_Socket.close();
             }
         }
     }
+    
+    private static void broadcastLSP(DatagramSocket udpSocket) throws IOException{
+        if(ownnodeId=='?') return ;
+        ByteBuffer lsp= ByteBuffer.allocate(6+nbrCount*5);
+        lsp.put((byte)ownnodeId);
+        lsp.putInt(++seqNo);
+        lsp.put((byte)nbrCount);
+        for(int i=0;i<nbrCount;i++){
+            lsp.put((byte)nbrIds[i]);
+            lsp.putInt(nbrcosts[i]);
+        }
+        byte[] lspBytes=lsp.array();
+
+        for(int i=0;i<nbrCount;i++){
+            DatagramPacket lspPacket=new DatagramPacket(lspBytes,lspBytes.length,nbrIPs[i],nbrPorts[i]);
+            udpSocket.send(lspPacket);
+        }
+        System.out.println("Broadcasted LSP seq " + seqNo);
+    }
 }
+
 
