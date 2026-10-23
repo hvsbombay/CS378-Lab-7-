@@ -7,8 +7,10 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <sys/stat.h>
+#include <time.h>
 
-#define ON_PORT 5050
+#define ON_PORT 5000
 #define MAX_NODES 26
 
 typedef struct {
@@ -215,6 +217,10 @@ int main (int argc, char *argv[]){
     }
     printf("Oracle Node listening on port %d\n", ON_PORT);
 
+    struct stat file_stat;
+    stat(argv[1], &file_stat);
+    time_t last_mod_time = file_stat.st_mtime;
+    time_t last_check_time = time(NULL);
     //single threaded loop
     while(1) {
         fd_set read_fds;
@@ -239,6 +245,19 @@ int main (int argc, char *argv[]){
     if (activity < 0) {
         perror("select() fail");
         break;
+    }
+    time_t current_time = time(NULL);
+    if(current_time - last_check_time > 2){
+        last_check_time = current_time;
+        if(stat(argv[1], &file_stat)==0 && file_stat.st_mtime > last_mod_time){
+            printf("Config modified \n");
+            last_mod_time = file_stat.st_mtime;
+            if (parse_config(argv[1])){
+                for(int i =0;i<num_config_nodes;i++){
+                    if(vnnodes[i].connected) send_linkstates(i);
+                }
+            }
+        }
     }
 
     //listen socket new vn connect

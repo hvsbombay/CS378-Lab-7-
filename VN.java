@@ -3,7 +3,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 public class VN {
-    static final int ON_port= 5000;
+    static final int ON_PORT= 5000;
     static final int N=26;
     static final int [][]graph= new int[N][N];
     static final int []lastseq= new int[N];
@@ -45,7 +45,7 @@ public class VN {
             System.out.println("binding is done");
 
             TCP_Socket = new Socket();
-            TCP_Socket.connect(new InetSocketAddress(ON_Addr, 5050));
+            TCP_Socket.connect(new InetSocketAddress(ON_Addr, ON_PORT));
             TCP_Socket.setSoTimeout(100);
             System.out.println("Connected to ON using TCP.");
             DataOutputStream out = new DataOutputStream(TCP_Socket.getOutputStream());
@@ -64,16 +64,18 @@ public class VN {
             // Read the LINK-STATE header
             while (true) {
                 try{
+                    while (in.available()>0){
                     int nextbyte=in.read();
                     if (nextbyte==-1){
                         System.out.println("ON disconnected");
-                        break;
+                        System.exit(0);
                     }
                     if(tcpCount>=tcpBuffer.length){
-                        tcpBuffer[tcpCount++] = (byte) nextbyte;
+                        break;
                     }
+                        tcpBuffer[tcpCount++] = (byte) nextbyte;
                 }
-                catch(SocketTimeoutException e){}
+            }catch(IOException e){}
 
                 while (tcpCount>=2) {
                     int messageType = tcpBuffer[0] & 0xFF;
@@ -118,10 +120,18 @@ public class VN {
                     }
 
                     int selfIdx=ownnodeId-'A';
+                    Arrays.fill(graph[selfIdx],-1);
                     graph[selfIdx][selfIdx]=0;
                     for(int i =0 ; i<nbrCount;i++){
                         graph[selfIdx][nbrIds[i]-'A'] =nbrcosts[i];
                     }
+                    StringBuilder lsprint = new StringBuilder();
+                    lsprint.append(ownnodeId).append("=0");
+                    for(int i = 0; i<nbrCount;i++){
+                        lsprint.append(", ").append(nbrIds[i]).append("=").append(nbrcosts[i]);
+                    }
+                    System.out.println(lsprint.toString());
+
                     broadcastLSP(UDP_Socket);
                     int restBytes=tcpCount-messagelen;
                     System.arraycopy(tcpBuffer, messagelen, tcpBuffer, 0, restBytes);
@@ -172,6 +182,13 @@ public class VN {
                                     graph[originIndex][recvnbrIds[i]-'A']=recvnbrCosts[i];
                                 }
                                 System.out.println("Accepted LSP from " + originId + ", seqNo: " + inseq);
+
+                                for(int i =0;i<nbrCount;i++){
+                                    if(nbrIds[i] != originId && !(nbrIPs[i].equals(packet.getAddress()) && nbrPorts[i] == packet.getPort())){
+                                        DatagramPacket fwPacket = new DatagramPacket(data,offset, len,nbrIPs[i],nbrPorts[i]);
+                                        UDP_Socket.send(fwPacket);
+                                    }
+                                }
                             }
                         }
                     }
